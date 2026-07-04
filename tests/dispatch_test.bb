@@ -14,8 +14,6 @@
             [pvcli.assert :as a]
             [clojure.string :as str]))
 
-(a/clear!)
-
 ;; --- pv tree spot checks ---
 
 (a/truthy (contains? pv/commands "info")
@@ -91,7 +89,3 @@
           "pv help text starts with 'pv '")
 (a/truthy (str/includes? ts/help "ts ")
           "ts help text starts with 'ts '")
-
-(println "Results:" (a/summary))
-(when (pos? (:fail (a/summary)))
-  (System/exit 1))

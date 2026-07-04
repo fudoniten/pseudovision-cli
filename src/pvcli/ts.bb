@@ -1,7 +1,7 @@
 (ns pvcli.ts
   "Tunarr Scheduler subcommands. Thin wrappers over /api/* routes in TS.
 
-   Coverage (v0.2 — added against live OpenAPI 2026-07-04):
+   Coverage (against live OpenAPI, 2026-07-04):
      info                                    GET /api/version
      channels list                           GET /api/scheduling/channels
      channel grid <slug>                     GET /api/scheduling/channels/{channel}/grid
@@ -16,11 +16,12 @@
      scheduling run-monthly [--channel X]    POST /api/scheduling/monthly
      scheduling run-quarterly [--channel X]  POST /api/scheduling/quarterly
      dimensions [--name X]                   GET /api/dimensions
-     dimensions <name> values                GET /api/dimensions/{dimension}/values
+     values <name>                           GET /api/dimensions/{dimension}/values
      jobs list                               GET /api/jobs
      jobs get <job-id>                       GET /api/jobs/{job-id}
      strategies current                      GET /api/strategies/current
      media libraries                         GET /api/media/libraries
+     media recategorize <library-id>         POST /api/media/{library-id}/recategorize
      bumpers list                            GET /api/bumpers
 
    Channel identifier note (Pitfall 22 from the ecosystem skill):
@@ -28,10 +29,9 @@
    as the storage key. The HTTP boundary translates slug→display name
    automatically (PR #96). So 'pcli ts channel grid goldenreels' works
    even though the storage row is keyed by 'Golden Reels'."
-  (:require [babashka.cli :as cli]
-            [clojure.string :as str]
-            [pvcli.http :as http]
-            [pvcli.output :as output]))
+  (:require [clojure.string :as str]
+            [pvcli.command :as command]
+            [pvcli.http :as http]))
 
 ;; ============================================================
 ;; Help text
@@ -58,12 +58,13 @@
              "  scheduling run-weekly [--channel X]        Trigger weekly scheduling"
              "  scheduling run-monthly [--channel X]       Trigger monthly overrides"
              "  scheduling run-quarterly [--channel X]     Trigger quarterly grid regen"
-             "  dimensions [--name X]                      List dimensions (or one)"
-             "  dimensions <name> values                   List values for a dimension"
+             "  dimensions [--name X]                      List dimensions (all, or one by --name)"
+             "  values <name>                              List values for a dimension"
              "  jobs list                                  List async jobs"
              "  jobs get <job-id>                          Fetch one job"
              "  strategies current                         Show current strategy"
              "  media libraries                            List media libraries"
+             "  media recategorize <library-id>            Trigger recategorization (POST)"
              "  bumpers list                               List generated bumpers"
              ""
              "Channel identifier:"
@@ -80,71 +81,54 @@
 (defn- svc [cfg] (cfg :ts))
 
 (defn- ok [resp] (:body resp))
-
-(defn- safe-call
-  "Run a thunk that makes an HTTP call, return its body on success, or
-   `{:error ...}` map on failure."
-  [thunk]
-  (try
-    {:ok true :body (thunk)}
-    (catch clojure.lang.ExceptionInfo e
-      {:ok false
-       :status (:status (ex-data e))
-       :error (ex-message e)})))
+;; Handlers return the raw response body. HTTP failures throw ex-info
+;; (from pvcli.http) and propagate to pvcli.main, which prints to stderr
+;; and exits non-zero. No {:ok :body} envelope — the returned value IS
+;; the JSON the user sees.
 
 ;; ============================================================
 ;; Command implementations
 ;; ============================================================
 
 (defn- info [{:keys [cfg]}]
-  (safe-call
-    #(ok (http/get (svc cfg) {:path "/api/version"}))))
+  (ok (http/get (svc cfg) {:path "/api/version"})))
 
 (defn- channels-list [opts]
-  (safe-call
-    #(ok (http/get (svc (:cfg opts)) {:path "/api/scheduling/channels"}))))
+  (ok (http/get (svc (:cfg opts)) {:path "/api/scheduling/channels"})))
 
 (defn- channel-grid [{:keys [cfg args]}]
   (let [slug (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/grid")})))))
+    (ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/grid")}))))
 
 (defn- channel-grids [{:keys [cfg args]}]
   (let [slug (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/grids")})))))
+    (ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/grids")}))))
 
 (defn- channel-overrides [{:keys [cfg args]}]
   (let [slug (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/overrides")})))))
+    (ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/overrides")}))))
 
 (defn- channel-overrides-history [{:keys [cfg args]}]
   (let [slug (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg)
-                     {:path (str "/api/scheduling/channels/" slug "/overrides/history")})))))
+    (ok (http/get (svc cfg)
+                  {:path (str "/api/scheduling/channels/" slug "/overrides/history")}))))
 
 (defn- channel-plan [{:keys [cfg args]}]
   (let [slug (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/plan")})))))
+    (ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/plan")}))))
 
 (defn- channel-preview [{:keys [cfg args]}]
   (let [slug (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/preview")})))))
+    (ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/preview")}))))
 
 (defn- channel-guidance [{:keys [cfg args]}]
   (let [slug (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/guidance")})))))
+    (ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/guidance")}))))
 
 (defn- run-scheduling [endpoint opts]
   (let [body (cond-> {}
                (:channel opts) (assoc :channel (:channel opts)))]
-    (safe-call
-      #(ok (http/post (svc (:cfg opts)) {:path endpoint :body body})))))
+    (ok (http/post (svc (:cfg opts)) {:path endpoint :body body}))))
 
 (defn- run-daily    [opts] (run-scheduling "/api/scheduling/daily"    opts))
 (defn- run-weekly   [opts] (run-scheduling "/api/scheduling/weekly"   opts))
@@ -152,39 +136,32 @@
 (defn- run-quarterly [opts] (run-scheduling "/api/scheduling/quarterly" opts))
 
 (defn- dimensions [{:keys [cfg name]}]
-  (safe-call
-    #(ok (http/get (svc cfg) {:path (cond-> "/api/dimensions"
-                                          name (str "/" name))}))))
+  (ok (http/get (svc cfg) {:path (cond-> "/api/dimensions"
+                                   name (str "/" name))})))
 
 (defn- dimension-values [{:keys [cfg args]}]
   (let [name (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/dimensions/" name "/values")})))))
+    (ok (http/get (svc cfg) {:path (str "/api/dimensions/" name "/values")}))))
 
 (defn- jobs-list [opts]
-  (safe-call
-    #(ok (http/get (svc (:cfg opts)) {:path "/api/jobs"}))))
+  (ok (http/get (svc (:cfg opts)) {:path "/api/jobs"})))
 
 (defn- jobs-get [{:keys [cfg args]}]
   (let [id (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/jobs/" id)})))))
+    (ok (http/get (svc cfg) {:path (str "/api/jobs/" id)}))))
 
 (defn- strategies-current [opts]
-  (safe-call
-    #(ok (http/get (svc (:cfg opts)) {:path "/api/strategies/current"}))))
+  (ok (http/get (svc (:cfg opts)) {:path "/api/strategies/current"})))
 
 (defn- media-libraries [opts]
-  (safe-call
-    #(ok (http/get (svc (:cfg opts)) {:path "/api/media/libraries"}))))
+  (ok (http/get (svc (:cfg opts)) {:path "/api/media/libraries"})))
 
 (defn- bumpers-list [opts]
-  (safe-call
-    #(ok (http/get (svc (:cfg opts)) {:path "/api/bumpers"}))))
+  (ok (http/get (svc (:cfg opts)) {:path "/api/bumpers"})))
 
-(defn- media-recategorize [{:keys [cfg library-id]}]
-  (safe-call
-    #(ok (http/post (svc cfg) {:path (str "/api/media/" library-id "/recategorize")}))))
+(defn- media-recategorize [{:keys [cfg args]}]
+  (let [library-id (first args)]
+    (ok (http/post (svc cfg) {:path (str "/api/media/" library-id "/recategorize")}))))
 
 ;; ============================================================
 ;; Command tree
@@ -266,7 +243,7 @@
       :handler run-quarterly}}}
 
    "dimensions"
-   {:help-summary "List dimensions (or one by --name, or values for a dimension)"
+   {:help-summary "List dimensions (all, or one by --name)"
     :spec {:name "If set, fetch just this dimension"}
     :handler dimensions}
 
@@ -289,9 +266,8 @@
       :spec {}
       :handler media-libraries}
      "recategorize"
-     {:help-summary "Trigger recategorization for a library (POST)"
-      :spec {:library-id "Library id (UUID) to recategorize"
-             :coerce :string}
+     {:help-summary "Trigger recategorization for a library (POST). Usage: recategorize <library-id>"
+      :spec {}
       :handler media-recategorize}}}
 
    "bumpers"
@@ -300,7 +276,7 @@
     {"list" {:help-summary "List generated bumpers" :spec {} :handler bumpers-list}}}
 
    "values"
-   {:help-summary "List values for a dimension (alias for 'dimension <name> values')"
+   {:help-summary "List values for a dimension. Usage: values <name>"
     :spec {}
     :handler dimension-values}})
 
@@ -308,86 +284,8 @@
 ;; Dispatch
 ;; ============================================================
 
-(defn- show-help []
-  (println help)
-  (System/exit 0))
-
-(defn- find-leaf
-  "Walk the command tree. Returns [leaf-spec path-taken] or nil.
-   A 'leaf' is any node with a :handler. If the user types a subcommand
-   prefix (e.g. 'ts channels') without going all the way to a leaf,
-   we return nil and let the dispatcher show the parent help or error."
-  [args]
-  (loop [m {:sub commands}
-         r args
-         acc []]
-    (cond
-      (empty? r)
-      (when (:handler m) [m acc])
-
-      (and (:handler m) (not (contains? (:sub m) (first r))))
-      ;; current node is a leaf and next arg isn't a subcommand — stop
-      ;; walking. Caller derives positional args from `r` vs acc.
-      [m acc]
-
-      (contains? (:sub m) (first r))
-      (recur (get-in m [:sub (first r)]) (rest r) (conj acc (first r)))
-
-      :else
-      nil)))
-(defn- print-leaf-help [path leaf]
-  (println (str "ts " (str/join " " path) " — " (:help-summary leaf)))
-  (when (seq (:spec leaf))
-    (println)
-    (println "Options:")
-    (println (cli/format-opts {:spec (:spec leaf)}))))
-
 (defn dispatch
   "Route a ts subcommand. `args` is the arg vector AFTER 'ts'.
-   `cfg` is the resolved service config. `mode` is :json or :human."
+   `cfg` is the resolved config. `mode` is :json or :human."
   [cfg mode args]
-  (cond
-    (or (empty? args)
-        (and (= 1 (count args))
-             (contains? #{"--help" "-h" "help"} (first args))))
-    (show-help)
-
-    (and (= 2 (count args))
-         (contains? #{"--help" "-h" "help"} (second args)))
-    (let [path-args (take 1 args)
-          result (find-leaf path-args)]
-      (if result
-        (print-leaf-help path-args (first result))
-        (do (binding [*out* *err*]
-              (println (str "Unknown ts subcommand: " (first args))))
-            (println help)
-            (System/exit 2))))
-
-    :else
-    (let [result (find-leaf args)]
-      (if-not result
-        (do (binding [*out* *err*]
-              (println (str "Unknown or incomplete ts command: "
-                            (str/join " " args)))
-              (println "Run 'pvcli ts --help' for the list."))
-            (System/exit 2))
-        (let [[leaf path-taken] result
-              path-len (count path-taken)
-              leaf-args (vec (drop path-len args))
-              parsed (try
-                       (cli/parse-args leaf-args
-                                       {:exec-fn (fn [_]
-                                                   (print-leaf-help path-taken leaf)
-                                                   (System/exit 0))
-                                        :spec (:spec leaf)
-                                        :error-fn (fn [m]
-                                                    (binding [*out* *err*]
-                                                      (println "Error:" (:msg m)))
-                                                    (System/exit 2))})
-                       (catch clojure.lang.ExceptionInfo e
-                         (binding [*out* *err*]
-                           (println "Error:" (ex-message e)))
-                         (System/exit 2)))]
-          (output/emit-and-print!
-            ((:handler leaf) (assoc parsed :cfg cfg))
-            mode))))))
+  (command/dispatch "ts" help commands cfg mode args))

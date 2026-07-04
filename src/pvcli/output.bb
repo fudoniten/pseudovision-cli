@@ -13,19 +13,25 @@
   (:require [cheshire.core :as json]
             [clojure.string :as str]))
 
+(defn- cell
+  "Render a single value for human output. Collections become compact JSON
+   so a table/kv cell never shows a raw Clojure literal."
+  [v]
+  (cond
+    (nil? v)  ""
+    (coll? v) (json/generate-string v)
+    :else     (str v)))
+
 (defn- kv-block [m]
   (let [ks (sort (keys m))
         w  (apply max 0 (map count (map name ks)))]
     (str/join "\n"
               (for [k ks]
-                (format (str "%-" w "s  %s") (name k)
-                        (if (coll? (get m k))
-                          (json/generate-string (get m k))
-                          (str (get m k))))))))
+                (format (str "%-" w "s  %s") (name k) (cell (get m k)))))))
 
 (defn- table [rows]
   (let [ks  (->> rows first keys vec)
-        val-strs (fn [k] (for [r rows] (str (get r k ""))))
+        val-strs (fn [k] (for [r rows] (cell (get r k))))
         widths   (zipmap ks
                          (for [k ks]
                            (apply max (count (name k))
@@ -34,7 +40,7 @@
                    (str/join "  "
                              (for [k ks]
                                (format (str "%-" (widths k) "s")
-                                       (str (get r k ""))))))
+                                       (cell (get r k))))))
         header   (fmt-row (zipmap ks (map name ks)))
         sep      (apply str (repeat (count header) \-))
         body     (str/join "\n" (map fmt-row rows))]
