@@ -1,7 +1,7 @@
 (ns pvcli.pv
   "Pseudovision subcommands. Thin wrappers over /api/* routes in PV.
 
-   Coverage (v0.2 — added against live OpenAPI 2026-07-04):
+   Coverage (against live OpenAPI, 2026-07-04):
      info                            GET /api/version
      channels list [--channel X]     GET /api/channels
      channels get <id>               GET /api/channels/{id}

@@ -61,21 +61,16 @@
   "Validate status, parse body, return {:status :body :raw}."
   [resp url method]
   (let [status (:status resp)]
-    (cond
-      (<= 200 status 299)
+    (if (<= 200 status 299)
+      ;; safe-parse yields nil for empty bodies (e.g. 204 No Content).
       {:status status :body (safe-parse (slurp-body (:body resp))) :raw resp}
-
-      (= 204 status)
-      {:status status :body nil :raw resp}
-
-      :else
       (throw-http-error resp url method))))
 
 (defn- request*
   "Common request builder. `body` is a map (JSON-encoded) or a string
-   (sent as-is). Returns a response map or throws ex-info on error."
-  [method svc {:keys [path body headers query throw-exceptions?]
-               :or {throw-exceptions? true}}]
+   (sent as-is, as octet-stream). Returns a parsed response map, or throws
+   ex-info on an HTTP error status."
+  [method svc {:keys [path body headers query]}]
   (let [url (str (:url svc) path)
         has-body? (some? body)
         base-headers (merge {"Accept" "application/json"}
@@ -95,11 +90,8 @@
                       :headers full-headers
                       :throw false}
                query    (assoc :query-params query)
-               body-str (assoc :body body-str))
-        resp (http/request opts)]
-    (if throw-exceptions?
-      (handle-response resp url method)
-      resp)))
+               body-str (assoc :body body-str))]
+    (handle-response (http/request opts) url method)))
 
 (defn get    [svc opts] (request* "GET"    svc opts))
 (defn post   [svc opts] (request* "POST"   svc opts))

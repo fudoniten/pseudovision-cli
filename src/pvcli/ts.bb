@@ -1,7 +1,7 @@
 (ns pvcli.ts
   "Tunarr Scheduler subcommands. Thin wrappers over /api/* routes in TS.
 
-   Coverage (v0.2 — added against live OpenAPI 2026-07-04):
+   Coverage (against live OpenAPI, 2026-07-04):
      info                                    GET /api/version
      channels list                           GET /api/scheduling/channels
      channel grid <slug>                     GET /api/scheduling/channels/{channel}/grid
