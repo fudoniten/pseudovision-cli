@@ -21,6 +21,7 @@
      jobs get <job-id>                       GET /api/jobs/{job-id}
      strategies current                      GET /api/strategies/current
      media libraries                         GET /api/media/libraries
+     media recategorize <library-id>         POST /api/media/{library-id}/recategorize
      bumpers list                            GET /api/bumpers
 
    Channel identifier note (Pitfall 22 from the ecosystem skill):
@@ -63,6 +64,7 @@
              "  jobs get <job-id>                          Fetch one job"
              "  strategies current                         Show current strategy"
              "  media libraries                            List media libraries"
+             "  media recategorize <library-id>            Trigger recategorization (POST)"
              "  bumpers list                               List generated bumpers"
              ""
              "Channel identifier:"
@@ -157,8 +159,9 @@
 (defn- bumpers-list [opts]
   (ok (http/get (svc (:cfg opts)) {:path "/api/bumpers"})))
 
-(defn- media-recategorize [{:keys [cfg library-id]}]
-  (ok (http/post (svc cfg) {:path (str "/api/media/" library-id "/recategorize")})))
+(defn- media-recategorize [{:keys [cfg args]}]
+  (let [library-id (first args)]
+    (ok (http/post (svc cfg) {:path (str "/api/media/" library-id "/recategorize")}))))
 
 ;; ============================================================
 ;; Command tree
@@ -263,9 +266,8 @@
       :spec {}
       :handler media-libraries}
      "recategorize"
-     {:help-summary "Trigger recategorization for a library (POST)"
-      :spec {:library-id "Library id (UUID) to recategorize"
-             :coerce :string}
+     {:help-summary "Trigger recategorization for a library (POST). Usage: recategorize <library-id>"
+      :spec {}
       :handler media-recategorize}}}
 
    "bumpers"

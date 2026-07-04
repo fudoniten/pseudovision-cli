@@ -19,7 +19,8 @@
    - Each command's handler returns a JSON-serialisable value.
    - The dispatch layer handles printing + error formatting.
    - Auth headers are set by pvcli.http based on cfg."
-  (:require [clojure.string :as str]
+  (:require [cheshire.core :as json]
+            [clojure.string :as str]
             [pvcli.command :as command]
             [pvcli.http :as http]))
 
@@ -88,7 +89,11 @@
     (ok (http/get (svc cfg) {:path (str "/api/filler-presets/" id)}))))
 
 (defn- filler-presets-create [{:keys [cfg body]}]
-  (ok (http/post (svc cfg) {:path "/api/filler-presets" :body body})))
+  ;; --body is a JSON string; parse it to a map so pvcli.http sends it as
+  ;; application/json (a raw string body would go out as octet-stream).
+  (ok (http/post (svc cfg)
+                 {:path "/api/filler-presets"
+                  :body (when body (json/parse-string body true))})))
 
 (defn- media-libraries [opts]
   (ok (http/get (svc (:cfg opts)) {:path "/api/media/libraries"})))
