@@ -1,0 +1,28 @@
+#!/usr/bin/env bb
+;; pvcli — CLI for the Pseudovision media-automation ecosystem.
+;;
+;; Entry point. Real work lives in src/pvcli/main.bb.
+;;
+;; When invoked via `nix run` (the wrapped binary), bb discovers the
+;; namespace tree relative to the script's location, so the wrapper
+;; script in $out/share/pvcli/bin/pvcli can find src/pvcli/ via the
+;; standard ".." path.
+;;
+;; When invoked from a source checkout (`bb bin/pvcli`), the script's
+;; directory is bin/, so we explicitly add ../src to the classpath.
+
+(require '[babashka.classpath :as cp]
+         '[babashka.fs :as fs])
+
+(let [script-dir (fs/parent (fs/file *file*))
+      ;; When the script is in a normal checkout, src/ is the parent's src/.
+      ;; When run from a nix store layout (e.g. $out/share/pvcli/bin/pvcli),
+      ;; src/ is the parent's src/ too — the wrapper preserves the layout.
+      src-dir (str (fs/path script-dir ".." "src"))]
+  (when (fs/exists? src-dir)
+    (cp/add-classpath src-dir)))
+
+(require '[pvcli.main])
+
+(when (= *file* (System/getProperty "babashka.file"))
+  (pvcli.main/-main *command-line-args*))
