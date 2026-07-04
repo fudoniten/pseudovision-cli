@@ -28,10 +28,9 @@
    as the storage key. The HTTP boundary translates slug→display name
    automatically (PR #96). So 'pcli ts channel grid goldenreels' works
    even though the storage row is keyed by 'Golden Reels'."
-  (:require [babashka.cli :as cli]
-            [clojure.string :as str]
-            [pvcli.http :as http]
-            [pvcli.output :as output]))
+  (:require [clojure.string :as str]
+            [pvcli.command :as command]
+            [pvcli.http :as http]))
 
 ;; ============================================================
 ;; Help text
@@ -283,89 +282,8 @@
 ;; Dispatch
 ;; ============================================================
 
-(defn- show-help []
-  (println help)
-  (System/exit 0))
-
-(defn- find-leaf
-  "Walk the command tree. Returns [leaf-spec path-taken] or nil.
-   A 'leaf' is any node with a :handler. If the user types a subcommand
-   prefix (e.g. 'ts channels') without going all the way to a leaf,
-   we return nil and let the dispatcher show the parent help or error."
-  [args]
-  (loop [m {:sub commands}
-         r args
-         acc []]
-    (cond
-      (empty? r)
-      (when (:handler m) [m acc])
-
-      (and (:handler m) (not (contains? (:sub m) (first r))))
-      ;; current node is a leaf and next arg isn't a subcommand — stop
-      ;; walking. Caller derives positional args from `r` vs acc.
-      [m acc]
-
-      (contains? (:sub m) (first r))
-      (recur (get-in m [:sub (first r)]) (rest r) (conj acc (first r)))
-
-      :else
-      nil)))
-(defn- print-leaf-help [path leaf]
-  (println (str "ts " (str/join " " path) " — " (:help-summary leaf)))
-  (when (seq (:spec leaf))
-    (println)
-    (println "Options:")
-    (println (cli/format-opts {:spec (:spec leaf)}))))
-
 (defn dispatch
   "Route a ts subcommand. `args` is the arg vector AFTER 'ts'.
-   `cfg` is the resolved service config. `mode` is :json or :human."
+   `cfg` is the resolved config. `mode` is :json or :human."
   [cfg mode args]
-  (cond
-    (or (empty? args)
-        (and (= 1 (count args))
-             (contains? #{"--help" "-h" "help"} (first args))))
-    (show-help)
-
-    (and (= 2 (count args))
-         (contains? #{"--help" "-h" "help"} (second args)))
-    (let [path-args (take 1 args)
-          result (find-leaf path-args)]
-      (if result
-        (print-leaf-help path-args (first result))
-        (do (binding [*out* *err*]
-              (println (str "Unknown ts subcommand: " (first args))))
-            (println help)
-            (System/exit 2))))
-
-    :else
-    (let [result (find-leaf args)]
-      (if-not result
-        (do (binding [*out* *err*]
-              (println (str "Unknown or incomplete ts command: "
-                            (str/join " " args)))
-              (println "Run 'pvcli ts --help' for the list."))
-            (System/exit 2))
-        (let [[leaf path-taken] result
-              path-len (count path-taken)
-              leaf-args (vec (drop path-len args))]
-          (if (some #(contains? #{"--help" "-h"} %) leaf-args)
-            (print-leaf-help path-taken leaf)
-            (let [parsed (try
-                           (cli/parse-args leaf-args
-                                           {:spec (:spec leaf)
-                                            :error-fn (fn [m]
-                                                        (binding [*out* *err*]
-                                                          (println "Error:" (:msg m)))
-                                                        (System/exit 2))})
-                           (catch clojure.lang.ExceptionInfo e
-                             (binding [*out* *err*]
-                               (println "Error:" (ex-message e)))
-                             (System/exit 2)))
-                  ;; babashka.cli nests options under :opts and puts
-                  ;; positionals under :cmds or :args depending on position;
-                  ;; flatten into one map the handler can destructure.
-                  handler-arg (merge (:opts parsed)
-                                     {:cfg cfg
-                                      :args (vec (concat (:cmds parsed) (:args parsed)))})]
-              (output/emit-and-print! ((:handler leaf) handler-arg) mode))))))))
+  (command/dispatch "ts" help commands cfg mode args))
