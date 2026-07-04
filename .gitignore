@@ -1,0 +1,32 @@
+# Nix
+result
+result-*
+.direnv/
+.envrc
+
+# Local build artifacts
+*.tar.gz
+*.zip
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+test-output/
+*.log
+
+# bb (babashka) — only if you decide to use pods later
+.bb/
+
+# Secrets / local overrides
+config.local.edn
+*.local.edn
+.env
+.env.local
