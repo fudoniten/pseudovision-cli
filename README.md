@@ -54,6 +54,14 @@ pvcli pv channels list --human
 
 Per-command errors go to stderr with a non-zero exit code.
 
+## Exit codes
+
+| Code | Meaning                                                        |
+|------|----------------------------------------------------------------|
+| 0    | Success                                                        |
+| 1    | Runtime / HTTP error (a request reached a service and failed)  |
+| 2    | Usage or config error (unknown service/command, no usable URL) |
+
 ## Commands
 
 ```
@@ -76,7 +84,14 @@ nix run .#pvcli -- pv channels list
 
 # Dev shell with babashka + clj-kondo
 nix develop
+
+# Run the test suite directly
+bb tests/run.bb
 ```
+
+> **Note:** this repo does not yet commit a `flake.lock`. Run `nix flake lock`
+> and commit the result so `nix run github:fudoniten/pseudovision-cli` resolves
+> its inputs reproducibly.
 
 ## License
 

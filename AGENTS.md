@@ -30,12 +30,13 @@ pvcli/
 │   ├── config.bb         Config + env loading. One source-of-truth map per service.
 │   ├── http.bb           HTTP client wrapper. Auth, JSON encode/decode, error mapping.
 │   ├── output.bb         JSON (default) and --human table output.
+│   ├── command.bb        Shared command-tree dispatch (used by pv/ts/grout).
 │   ├── pv.bb             Pseudovision subcommands.
 │   ├── ts.bb             Tunarr Scheduler subcommands.
 │   └── grout.bb          Grout subcommands.
 ├── tests/                bb-based unit tests (run via `nix flake check` or `bb test`).
 ├── flake.nix             Nix build (mkDerivation + makeWrapper).
-└── flake.lock
+└── flake.lock            (generate + commit with `nix flake lock`; not yet pinned)
 ```
 
 ## Conventions
