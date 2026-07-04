@@ -59,80 +59,61 @@
 (defn- svc [cfg] (cfg :pv))
 
 (defn- ok [resp] (:body resp))
-
-(defn- safe-call
-  "Run a thunk that makes an HTTP call, return its body on success, or
-   `{:error ...}` map on failure. Used so a single failing call doesn't
-   take down the whole CLI invocation."
-  [thunk]
-  (try
-    {:ok true :body (thunk)}
-    (catch clojure.lang.ExceptionInfo e
-      {:ok false
-       :status (:status (ex-data e))
-       :error (ex-message e)})))
+;; Handlers return the raw response body. HTTP failures throw ex-info
+;; (from pvcli.http) and propagate up to pvcli.main, which prints the
+;; message to stderr and exits non-zero. We deliberately do NOT wrap the
+;; result in an {:ok :body} envelope — the value a handler returns IS the
+;; JSON the user sees, so `pvcli pv channels list | jq '.[]'` works.
 
 ;; ============================================================
 ;; Command implementations
 ;; ============================================================
 
 (defn- info [{:keys [cfg]}]
-  (safe-call
-    #(ok (http/get (svc cfg) {:path "/api/version"}))))
+  (ok (http/get (svc cfg) {:path "/api/version"})))
 
 (defn- channels-list [{:keys [cfg channel]}]
-  (safe-call
-    #(ok (http/get (svc cfg)
-                   {:path "/api/channels"
-                    :query (cond-> {} channel (assoc :channel channel))}))))
+  (ok (http/get (svc cfg)
+                {:path "/api/channels"
+                 :query (cond-> {} channel (assoc :channel channel))})))
 
 (defn- channels-get [{:keys [cfg args]}]
   (let [id (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/channels/" id)})))))
+    (ok (http/get (svc cfg) {:path (str "/api/channels/" id)}))))
 
 (defn- filler-presets-list [opts]
-  (safe-call
-    #(ok (http/get (svc (:cfg opts)) {:path "/api/filler-presets"}))))
+  (ok (http/get (svc (:cfg opts)) {:path "/api/filler-presets"})))
 
 (defn- filler-presets-get [{:keys [cfg args]}]
   (let [id (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/filler-presets/" id)})))))
+    (ok (http/get (svc cfg) {:path (str "/api/filler-presets/" id)}))))
 
 (defn- filler-presets-create [{:keys [cfg body]}]
-  (safe-call
-    #(ok (http/post (svc cfg) {:path "/api/filler-presets" :body body}))))
+  (ok (http/post (svc cfg) {:path "/api/filler-presets" :body body})))
 
 (defn- media-libraries [opts]
-  (safe-call
-    #(ok (http/get (svc (:cfg opts)) {:path "/api/media/libraries"}))))
+  (ok (http/get (svc (:cfg opts)) {:path "/api/media/libraries"})))
 
 (defn- jobs-list [opts]
-  (safe-call
-    #(ok (http/get (svc (:cfg opts)) {:path "/api/jobs"}))))
+  (ok (http/get (svc (:cfg opts)) {:path "/api/jobs"})))
 
 (defn- jobs-get [{:keys [cfg args]}]
   (let [id (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/jobs/" id)})))))
+    (ok (http/get (svc cfg) {:path (str "/api/jobs/" id)}))))
 
 (defn- schedules-list [opts]
-  (safe-call
-    #(ok (http/get (svc (:cfg opts)) {:path "/api/schedules"}))))
+  (ok (http/get (svc (:cfg opts)) {:path "/api/schedules"})))
 
 (defn- tags [opts]
-  (safe-call
-    #(ok (http/get (svc (:cfg opts)) {:path "/api/tags"}))))
+  (ok (http/get (svc (:cfg opts)) {:path "/api/tags"})))
 
 (defn- catalog [{:keys [cfg channel tag limit]}]
-  (safe-call
-    #(ok (http/get (svc cfg)
-                   {:path "/api/catalog/aggregate"
-                    :query (cond-> {}
-                             channel (assoc :channel channel)
-                             tag     (assoc :tag tag)
-                             limit   (assoc :limit limit))}))))
+  (ok (http/get (svc cfg)
+                {:path "/api/catalog/aggregate"
+                 :query (cond-> {}
+                          channel (assoc :channel channel)
+                          tag     (assoc :tag tag)
+                          limit   (assoc :limit limit))})))
 
 ;; ============================================================
 ;; Command tree

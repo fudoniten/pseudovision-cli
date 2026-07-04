@@ -80,71 +80,54 @@
 (defn- svc [cfg] (cfg :ts))
 
 (defn- ok [resp] (:body resp))
-
-(defn- safe-call
-  "Run a thunk that makes an HTTP call, return its body on success, or
-   `{:error ...}` map on failure."
-  [thunk]
-  (try
-    {:ok true :body (thunk)}
-    (catch clojure.lang.ExceptionInfo e
-      {:ok false
-       :status (:status (ex-data e))
-       :error (ex-message e)})))
+;; Handlers return the raw response body. HTTP failures throw ex-info
+;; (from pvcli.http) and propagate to pvcli.main, which prints to stderr
+;; and exits non-zero. No {:ok :body} envelope — the returned value IS
+;; the JSON the user sees.
 
 ;; ============================================================
 ;; Command implementations
 ;; ============================================================
 
 (defn- info [{:keys [cfg]}]
-  (safe-call
-    #(ok (http/get (svc cfg) {:path "/api/version"}))))
+  (ok (http/get (svc cfg) {:path "/api/version"})))
 
 (defn- channels-list [opts]
-  (safe-call
-    #(ok (http/get (svc (:cfg opts)) {:path "/api/scheduling/channels"}))))
+  (ok (http/get (svc (:cfg opts)) {:path "/api/scheduling/channels"})))
 
 (defn- channel-grid [{:keys [cfg args]}]
   (let [slug (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/grid")})))))
+    (ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/grid")}))))
 
 (defn- channel-grids [{:keys [cfg args]}]
   (let [slug (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/grids")})))))
+    (ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/grids")}))))
 
 (defn- channel-overrides [{:keys [cfg args]}]
   (let [slug (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/overrides")})))))
+    (ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/overrides")}))))
 
 (defn- channel-overrides-history [{:keys [cfg args]}]
   (let [slug (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg)
-                     {:path (str "/api/scheduling/channels/" slug "/overrides/history")})))))
+    (ok (http/get (svc cfg)
+                  {:path (str "/api/scheduling/channels/" slug "/overrides/history")}))))
 
 (defn- channel-plan [{:keys [cfg args]}]
   (let [slug (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/plan")})))))
+    (ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/plan")}))))
 
 (defn- channel-preview [{:keys [cfg args]}]
   (let [slug (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/preview")})))))
+    (ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/preview")}))))
 
 (defn- channel-guidance [{:keys [cfg args]}]
   (let [slug (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/guidance")})))))
+    (ok (http/get (svc cfg) {:path (str "/api/scheduling/channels/" slug "/guidance")}))))
 
 (defn- run-scheduling [endpoint opts]
   (let [body (cond-> {}
                (:channel opts) (assoc :channel (:channel opts)))]
-    (safe-call
-      #(ok (http/post (svc (:cfg opts)) {:path endpoint :body body})))))
+    (ok (http/post (svc (:cfg opts)) {:path endpoint :body body}))))
 
 (defn- run-daily    [opts] (run-scheduling "/api/scheduling/daily"    opts))
 (defn- run-weekly   [opts] (run-scheduling "/api/scheduling/weekly"   opts))
@@ -152,39 +135,31 @@
 (defn- run-quarterly [opts] (run-scheduling "/api/scheduling/quarterly" opts))
 
 (defn- dimensions [{:keys [cfg name]}]
-  (safe-call
-    #(ok (http/get (svc cfg) {:path (cond-> "/api/dimensions"
-                                          name (str "/" name))}))))
+  (ok (http/get (svc cfg) {:path (cond-> "/api/dimensions"
+                                   name (str "/" name))})))
 
 (defn- dimension-values [{:keys [cfg args]}]
   (let [name (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/dimensions/" name "/values")})))))
+    (ok (http/get (svc cfg) {:path (str "/api/dimensions/" name "/values")}))))
 
 (defn- jobs-list [opts]
-  (safe-call
-    #(ok (http/get (svc (:cfg opts)) {:path "/api/jobs"}))))
+  (ok (http/get (svc (:cfg opts)) {:path "/api/jobs"})))
 
 (defn- jobs-get [{:keys [cfg args]}]
   (let [id (first args)]
-    (safe-call
-      #(ok (http/get (svc cfg) {:path (str "/api/jobs/" id)})))))
+    (ok (http/get (svc cfg) {:path (str "/api/jobs/" id)}))))
 
 (defn- strategies-current [opts]
-  (safe-call
-    #(ok (http/get (svc (:cfg opts)) {:path "/api/strategies/current"}))))
+  (ok (http/get (svc (:cfg opts)) {:path "/api/strategies/current"})))
 
 (defn- media-libraries [opts]
-  (safe-call
-    #(ok (http/get (svc (:cfg opts)) {:path "/api/media/libraries"}))))
+  (ok (http/get (svc (:cfg opts)) {:path "/api/media/libraries"})))
 
 (defn- bumpers-list [opts]
-  (safe-call
-    #(ok (http/get (svc (:cfg opts)) {:path "/api/bumpers"}))))
+  (ok (http/get (svc (:cfg opts)) {:path "/api/bumpers"})))
 
 (defn- media-recategorize [{:keys [cfg library-id]}]
-  (safe-call
-    #(ok (http/post (svc cfg) {:path (str "/api/media/" library-id "/recategorize")}))))
+  (ok (http/post (svc cfg) {:path (str "/api/media/" library-id "/recategorize")})))
 
 ;; ============================================================
 ;; Command tree
