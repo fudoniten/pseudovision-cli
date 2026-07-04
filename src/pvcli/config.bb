@@ -15,10 +15,14 @@
             [clojure.string :as str]))
 
 (def default-config-paths
-  "Ordered list of candidate config paths. First one that exists wins."
-  [(fs/path (System/getenv "HOME") ".config" "pvcli" "config.edn")
-   (fs/path (System/getenv "HOME") ".pvcli.edn")
-   (fs/path ".pvcli.edn")])
+  "Ordered list of candidate config paths. First one that exists wins.
+   HOME-based paths are only included when HOME is set — in a sandbox (e.g.
+   `nix flake check`) it may be unset, and (fs/path nil ...) would throw."
+  (let [home (System/getenv "HOME")]
+    (cond-> []
+      home (conj (fs/path home ".config" "pvcli" "config.edn")
+                 (fs/path home ".pvcli.edn"))
+      :always (conj (fs/path ".pvcli.edn")))))
 
 (def built-in-defaults
   "Fallback URL for each service. Used only when no config file is found
