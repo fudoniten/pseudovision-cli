@@ -1,49 +1,47 @@
 (ns pvcli.main
-  "Top-level entry. Resolves config, then dispatches to the service handler."
-  (:require [babashka.cli :as cli]
-            [pvcli.cli :as cli-impl]
-            [pvcli.config :as config]
-            [pvcli.output :as output]
-            [clojure.string :as str]))
+  "Top-level entry. Resolves config, then dispatches to the service handler.
+
+   Exit codes:
+     0  success
+     1  runtime / HTTP error (the request reached a service and failed)
+     2  usage / config error (bad service, bad command, unresolvable config)"
+  (:require [pvcli.cli :as cli-impl]
+            [pvcli.config :as config]))
 
 (defn- print-err [& xs]
   (binding [*out* *err*]
     (apply println xs)))
 
-(defn- exit [code]
-  (System/exit code))
-
-(defn -main [args]
+(defn run
+  "Do the work and return an integer exit code. Does not call System/exit
+   itself, so it is testable; `-main` wraps it. Service dispatchers may still
+   call System/exit on their own help/error paths — those are not on the
+   success path exercised by tests."
+  [args]
   (try
-    (let [{:keys [opts] :as parsed} (cli/parse-args args {:spec cli-impl/global-spec
-                                                          :error-fn cli-impl/error-fn})
-          mode (if (:human opts) :human :json)
-          cfg  (try
-                 (config/load opts)
-                 (catch clojure.lang.ExceptionInfo e
-                   (print-err "Error:" (ex-message e))
-                   (exit 2)))]
+    (let [[gopts service-args] (cli-impl/split-global-opts args)
+          mode (if (:human gopts) :human :json)
+          head (first service-args)]
       (cond
-        (:version opts)
-        (do (println (str "pvcli " cli-impl/version))
-            (exit 0))
+        (contains? #{"--version" "-V"} head)
+        (do (println (str "pvcli " cli-impl/version)) 0)
 
-        ;; --help at the top level (no service) shows top-level help.
-        ;; --help with a service is passed to the service dispatcher,
-        ;; which shows the service-specific help.
-        (and (:help opts) (empty? (:args parsed)))
-        (println cli-impl/top-help)
-
-        (empty? (:args parsed))
-        (println cli-impl/top-help)
+        (or (nil? head) (contains? #{"--help" "-h" "help"} head))
+        (do (println cli-impl/top-help) 0)
 
         :else
-        (cli-impl/dispatch cfg mode parsed)))
+        (let [cfg (config/load gopts)]
+          (cli-impl/dispatch cfg mode service-args)
+          0)))
     (catch clojure.lang.ExceptionInfo e
-      (let [status (:status (ex-data e))]
-        (print-err "Error:" (ex-message e))
-        (exit (if (and status (integer? status)) (if (< status 256) status 1) 1))))
+      (print-err "Error:" (ex-message e))
+      ;; HTTP errors carry :status → exit 1; config/usage errors → exit 2.
+      (if (:status (ex-data e)) 1 2))
     (catch Exception e
       (print-err "Unexpected error:" (or (ex-message e) (str e)))
-      (.printStackTrace e *err*)
-      (exit 1))))
+      (when (System/getenv "PVCLI_DEBUG")
+        (.printStackTrace e *err*))
+      1)))
+
+(defn -main [args]
+  (System/exit (run args)))

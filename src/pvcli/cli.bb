@@ -1,32 +1,12 @@
 (ns pvcli.cli
   "Top-level CLI dispatch. Picks a service (pv / ts / grout) and forwards
    args to the matching module."
-  (:require [babashka.cli :as cli]
-            [clojure.string :as str]
-            [pvcli.config :as config]
-            [pvcli.output :as output]
+  (:require [clojure.string :as str]
             [pvcli.pv :as pv]
             [pvcli.ts :as ts]
             [pvcli.grout :as grout]))
 
 (def version "0.1.0")
-
-(def global-spec
-  "Spec for options that are valid at any level. Service-specific options
-   live in the per-service modules."
-  {:help    {:alias :h
-             :coerce :boolean
-             :desc "Show this help"}
-   :version {:alias :V
-             :coerce :boolean
-             :desc "Show version"}
-   :human   {:alias :H
-             :coerce :boolean
-             :desc "Human-readable output (default: JSON)"}
-   :verbose {:alias :v
-             :coerce :boolean
-             :desc "Verbose logging to stderr"}
-   :config  {:desc "Path to config.edn (overrides ~/.config/pvcli/config.edn)"}})
 
 (def top-help
   (str
@@ -40,10 +20,10 @@
    "  ts       Tunarr Scheduler (scheduling, channels, plans, strategies)\n"
    "  grout    Grout (filler media store: intake, tags, query, by-hash)\n"
    "\n"
-   "Global options:\n"
+   "Global options (accepted anywhere on the command line):\n"
    "  -v, --verbose       Verbose logging to stderr\n"
    "      --config PATH   Path to config.edn\n"
-   "      --human         Human-readable output (default: JSON)\n"
+   "  -H, --human         Human-readable output (default: JSON)\n"
    "  -h, --help          Show this help\n"
    "      --version       Show version\n"
    "\n"
@@ -64,43 +44,64 @@
    "ts"    {:help ts/help    :dispatch-fn ts/dispatch}
    "grout" {:help grout/help :dispatch-fn grout/dispatch}})
 
-(defn error-fn
-  "Babashka.cli error callback. Prints the offending message and exits 2."
-  [{:keys [msg]}]
-  (binding [*out* *err*]
-    (println "Error:" msg))
-  (System/exit 2))
+(def ^:private global-boolean-flags
+  "Global boolean flags (and their aliases) that may appear anywhere on the
+   command line. `--help`/`--version` are intentionally excluded: they are
+   context-sensitive (top-level vs service-level) and handled by the caller
+   / service dispatchers."
+  {"--human"   :human
+   "-H"        :human
+   "--verbose" :verbose
+   "-v"        :verbose})
 
-(defn global-exec
-  "Top-level exec. Not normally called — we dispatch manually in
-   `dispatch` to keep service selection explicit. This exists so babashka.cli
-   can show --help cleanly."
-  [_opts]
-  (println top-help)
-  (System/exit 0))
+(defn split-global-opts
+  "Separate global options from the service command line. Recognized global
+   boolean flags (--human/-H, --verbose/-v) and `--config PATH` are pulled
+   out wherever they appear; everything else — the service, its subcommand,
+   and that command's own options and positionals — is returned untouched so
+   the service dispatcher can parse it with the right spec.
+
+   This is deliberately hand-rolled rather than delegated to babashka.cli:
+   parsing the whole argv against a global spec would swallow service-level
+   options (e.g. `--channel`) that are unknown at the top level.
+
+   Returns [global-opts remaining-args]."
+  [args]
+  (loop [remaining (seq args)
+         opts {}
+         out []]
+    (if (empty? remaining)
+      [opts (vec out)]
+      (let [a (first remaining)]
+        (cond
+          (contains? global-boolean-flags a)
+          (recur (rest remaining) (assoc opts (global-boolean-flags a) true) out)
+
+          (= a "--config")
+          (recur (drop 2 remaining) (assoc opts :config (second remaining)) out)
+
+          (str/starts-with? a "--config=")
+          (recur (rest remaining) (assoc opts :config (subs a (count "--config="))) out)
+
+          :else
+          (recur (rest remaining) opts (conj out a)))))))
 
 (defn dispatch
-  "Pick a service from `args` and call its dispatch fn. Used by main."
-  [cfg mode parsed]
-  (let [args (:args parsed)
-        opts (:opts parsed)
-        head (first args)]
+  "Pick a service from `args` (the argv with global options already removed)
+   and call its dispatch fn. `cfg` is the resolved config; `mode` is
+   :json or :human."
+  [cfg mode args]
+  (let [head (first args)]
     (cond
-      ;; No service given → show top-level help.
-      (or (nil? head) (= "--help" head) (= "-h" head) (= "help" head))
-      (do (println top-help) (System/exit 0))
+      (or (nil? head) (contains? #{"--help" "-h" "help"} head))
+      (println top-help)
 
       (not (contains? services head))
-      (do (binding [*out* *err*]
-            (println (str "Unknown service: " head))
-            (println "Run 'pvcli --help' for the list."))
-          (System/exit 2))
+      (binding [*out* *err*]
+        (println (str "Unknown service: " head))
+        (println "Run 'pvcli --help' for the list.")
+        (System/exit 2))
 
       :else
-      (let [{:keys [dispatch-fn help]} (get services head)
-            sub-args (rest args)
-            sub-mode (if (:human opts) :human mode)]
-        ;; If the user just asked for help on a service, print service help.
-        (if (some #(= % "--help") sub-args)
-          (do (println help) (System/exit 0))
-          (dispatch-fn cfg sub-mode sub-args))))))
+      (let [{:keys [dispatch-fn]} (get services head)]
+        (dispatch-fn cfg mode (rest args))))))

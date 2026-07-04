@@ -348,21 +348,24 @@
             (System/exit 2))
         (let [[leaf path-taken] result
               path-len (count path-taken)
-              leaf-args (vec (drop path-len args))
-              parsed (try
-                       (cli/parse-args leaf-args
-                                       {:exec-fn (fn [_]
-                                                   (print-leaf-help path-taken leaf)
-                                                   (System/exit 0))
-                                        :spec (:spec leaf)
-                                        :error-fn (fn [m]
-                                                    (binding [*out* *err*]
-                                                      (println "Error:" (:msg m)))
-                                                    (System/exit 2))})
-                       (catch clojure.lang.ExceptionInfo e
-                         (binding [*out* *err*]
-                           (println "Error:" (ex-message e)))
-                         (System/exit 2)))]
-          (output/emit-and-print!
-            ((:handler leaf) (assoc parsed :cfg cfg))
-            mode))))))
+              leaf-args (vec (drop path-len args))]
+          (if (some #(contains? #{"--help" "-h"} %) leaf-args)
+            (print-leaf-help path-taken leaf)
+            (let [parsed (try
+                           (cli/parse-args leaf-args
+                                           {:spec (:spec leaf)
+                                            :error-fn (fn [m]
+                                                        (binding [*out* *err*]
+                                                          (println "Error:" (:msg m)))
+                                                        (System/exit 2))})
+                           (catch clojure.lang.ExceptionInfo e
+                             (binding [*out* *err*]
+                               (println "Error:" (ex-message e)))
+                             (System/exit 2)))
+                  ;; babashka.cli nests options under :opts and puts
+                  ;; positionals under :cmds or :args depending on position;
+                  ;; flatten into one map the handler can destructure.
+                  handler-arg (merge (:opts parsed)
+                                     {:cfg cfg
+                                      :args (vec (concat (:cmds parsed) (:args parsed)))})]
+              (output/emit-and-print! ((:handler leaf) handler-arg) mode))))))))
