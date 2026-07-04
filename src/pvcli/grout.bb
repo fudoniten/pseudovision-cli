@@ -27,10 +27,12 @@
              ""]))
 
 (defn- info
-  "Probe the service. Returns a map with :service, :reachable, :version."
-  [_cfg _mode _args]
+  "Probe the service. Returns a map with :service, :reachable, :version.
+   Uses the resolved grout config (env / config file / built-in default),
+   not a hardcoded URL, so overrides are honored."
+  [cfg _mode _args]
   (try
-    (let [resp (http/get {:url "http://grout.pseudovision.svc.cluster.local:8080"} {:path "/api/version"})]
+    (let [resp (http/get (:grout cfg) {:path "/api/version"})]
       {:service "grout"
        :reachable true
        :version (:body resp)})
