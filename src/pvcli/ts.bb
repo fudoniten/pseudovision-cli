@@ -16,7 +16,7 @@
      scheduling run-monthly [--channel X]    POST /api/scheduling/monthly
      scheduling run-quarterly [--channel X]  POST /api/scheduling/quarterly
      dimensions [--name X]                   GET /api/dimensions
-     dimensions <name> values                GET /api/dimensions/{dimension}/values
+     values <name>                           GET /api/dimensions/{dimension}/values
      jobs list                               GET /api/jobs
      jobs get <job-id>                       GET /api/jobs/{job-id}
      strategies current                      GET /api/strategies/current
@@ -58,8 +58,8 @@
              "  scheduling run-weekly [--channel X]        Trigger weekly scheduling"
              "  scheduling run-monthly [--channel X]       Trigger monthly overrides"
              "  scheduling run-quarterly [--channel X]     Trigger quarterly grid regen"
-             "  dimensions [--name X]                      List dimensions (or one)"
-             "  dimensions <name> values                   List values for a dimension"
+             "  dimensions [--name X]                      List dimensions (all, or one by --name)"
+             "  values <name>                              List values for a dimension"
              "  jobs list                                  List async jobs"
              "  jobs get <job-id>                          Fetch one job"
              "  strategies current                         Show current strategy"
@@ -243,7 +243,7 @@
       :handler run-quarterly}}}
 
    "dimensions"
-   {:help-summary "List dimensions (or one by --name, or values for a dimension)"
+   {:help-summary "List dimensions (all, or one by --name)"
     :spec {:name "If set, fetch just this dimension"}
     :handler dimensions}
 
@@ -276,7 +276,7 @@
     {"list" {:help-summary "List generated bumpers" :spec {} :handler bumpers-list}}}
 
    "values"
-   {:help-summary "List values for a dimension (alias for 'dimension <name> values')"
+   {:help-summary "List values for a dimension. Usage: values <name>"
     :spec {}
     :handler dimension-values}})
 
