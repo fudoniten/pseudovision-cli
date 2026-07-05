@@ -1,5 +1,6 @@
 {
-  description = "pvcli — Babashka CLI for Pseudovision, Tunarr Scheduler, and Grout";
+  description =
+    "pvcli — Babashka CLI for Pseudovision, Tunarr Scheduler, and Grout";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
@@ -18,7 +19,7 @@
         # single binary; the wrapper approach means we can `nix run` or
         # `nix profile install` and the resolved src path always points to
         # the right place in the nix store.
-        pvcli = pkgs.stdenv.mkDerivation {
+        pvcliApp = pkgs.stdenv.mkDerivation {
           pname = "pvcli";
           version = "0.1.0";
 
@@ -55,7 +56,6 @@
           # the script's location, so we don't need to set anything fancy.
           meta = with pkgs.lib; {
             description = "Babashka CLI for the Pseudovision ecosystem";
-            license = licenses.unfree; # adjust if you decide on a license
             mainProgram = "pvcli";
             platforms = platforms.unix;
           };
@@ -74,31 +74,24 @@
           touch $out
         '';
 
-      in
-      {
+      in {
         packages = rec {
+          pvcli = pvcliApp;
           default = pvcli;
-          pvcli = pvcli;
         };
 
         apps = rec {
-          default = {
+          default = pvcli;
+          pvcli = {
             type = "app";
-            program = "${pvcli}/bin/pvcli";
+            program = "${pvcliApp}/bin/pvcli";
           };
-          pvcli = default;
         };
 
-        checks = {
-          inherit pvcliTests;
-        };
+        checks = { inherit pvcliTests; };
 
         devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            bb
-            clj-kondo
-            babashka
-          ];
+          buildInputs = with pkgs; [ bb clj-kondo babashka ];
           shellHook = ''
             echo "pvcli dev shell"
             echo "  run: nix run . -- --version"
