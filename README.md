@@ -3,15 +3,19 @@
 A Babashka CLI for the **Pseudovision media-automation ecosystem**: Pseudovision,
 Tunarr Scheduler, and Grout. One binary, three services, JSON by default.
 
+Ongoing work and known gaps are tracked in [PLAN.md](PLAN.md). Notes for
+contributors (layout, conventions, adding a command) are in
+[AGENTS.md](AGENTS.md).
+
 ```bash
 # list Pseudovision channels
 pvcli pv channels list
 
-# inspect a Tunarr Scheduler plan for a channel
-pvcli ts plan --channel goldenreels
+# inspect the Tunarr Scheduler planning doc for a channel
+pvcli ts channel plan goldenreels
 
-# tag and intake a clip into Grout
-pvcli grout intake --tags=kids,daytime --kind=filler bumper.mp4
+# check that Grout is reachable
+pvcli grout info
 ```
 
 ## Install
@@ -27,9 +31,9 @@ pvcli --version
 
 ## Configuration
 
-`pvcli` reads `~/.config/pvcli/config.edn` by default. Generate a starter:
+`pvcli` reads `~/.config/pvcli/config.edn` by default. A starter config:
 
-```toml
+```clojure
 {:pv    {:url "https://pseudovision.kube.sea.fudo.link"   :api-key "..."}
  :ts    {:url "https://tunarr-scheduler.kube.sea.fudo.link" :api-key "..."}
  :grout {:url "http://grout.pseudovision.svc.cluster.local:8080"}}
@@ -70,10 +74,12 @@ pvcli <service> <command> [options] [args]
 Services:
   pv       Pseudovision (channels, media, catalog, scheduling, filler)
   ts       Tunarr Scheduler (scheduling, channels, plans, strategies)
-  grout    Grout (filler media store: intake, tags, query, by-hash)
+  grout    Grout (filler media store; only `info` works today)
 ```
 
-Run `pvcli <service> --help` for subcommand help.
+Run `pvcli <service> --help` for subcommand help. The Grout `media`, `intake`
+and `tags` commands are placeholders that return "not implemented"; use
+Grout's own `grout-cli` for those until they land (see [PLAN.md](PLAN.md)).
 
 ## Development
 
@@ -89,9 +95,8 @@ nix develop
 bb tests/run.bb
 ```
 
-> **Note:** this repo does not yet commit a `flake.lock`. Run `nix flake lock`
-> and commit the result so `nix run github:fudoniten/pseudovision-cli` resolves
-> its inputs reproducibly.
+CI (`.github/workflows/ci.yml`) runs `nix flake check`, which runs the same
+test suite.
 
 ## License
 
