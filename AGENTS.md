@@ -1,7 +1,8 @@
 # AGENTS.md — pvcli
 
 > Working notes for AI agents (and humans) working on the `pvcli` Babashka
-> CLI. For a user-facing description, see [README.md](README.md).
+> CLI. For a user-facing description, see [README.md](README.md); for ongoing
+> work, see [PLAN.md](PLAN.md).
 
 ## What this is
 
@@ -36,7 +37,7 @@ pvcli/
 │   └── grout.bb          Grout subcommands.
 ├── tests/                bb-based unit tests (run via `nix flake check` or `bb test`).
 ├── flake.nix             Nix build (mkDerivation + makeWrapper).
-└── flake.lock            (generate + commit with `nix flake lock`; not yet pinned)
+└── flake.lock            Pinned flake inputs.
 ```
 
 ## Conventions
@@ -77,17 +78,17 @@ parsing. Don't reimplement arg parsing — use the spec map.
 
 ## Cross-service references
 
-The Pseudovision ecosystem is documented in detail in the
-`pseudovision-ecosystem-development` skill (in the
-`fudo-hermes/skills` collection). If you need to understand why a service
-behaves a certain way, that's the right place to look. Key patterns:
+The ecosystem-wide picture (which service owns what, and the cross-repo
+plan) lives in Pseudovision's
+[PLAN.md](https://github.com/fudoniten/pseudovision/blob/master/PLAN.md).
+Patterns that matter here:
 
-- **Kebab-case JSON everywhere** (Pitfall 8 — don't reformat names).
-- **Cron-driven scheduling** (Issue 1 in the skill — there's no batch POST).
+- **Kebab-case JSON from PV and Grout.** Don't reformat names at the boundary.
+- **Scheduling is cron-driven** in TS; the `scheduling run-*` commands just
+  trigger a run early. There is no batch POST.
 - **Grout intake is multipart** (since `5b947af`).
-- **Scheduler uses display name as the storage key** (Pitfall 22 — slug vs
-  display name vs PV id; the boundary translation lives in
-  `tunarr-scheduler#96`).
+- **Channel identity has several spellings** (TS config slug, display name,
+  TS UUID, PV UUID, PV number). `pvcli ts channel ...` takes the slug.
 
 ## Testing
 
